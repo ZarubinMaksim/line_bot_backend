@@ -44,7 +44,7 @@ app.use(cors({
 }));
 
 // =====================
-// LINE CONFIG
+// LINE CONFIG зззз
 // =====================
 const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
