@@ -26,11 +26,25 @@ app.get('/', (req, res) => {
 });
 
 // тест API (для фронта)
-app.get('/api/orders', (req, res) => {
-  res.json([
-    { id: 1, text: "B102", status: "pending" },
-    { id: 2, text: "A205", status: "done" }
-  ]);
+app.get('/api/orders', async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ _id: -1 });
+
+    res.json(
+      orders.map(o => ({
+        id: o._id,
+        text: o.text,
+        status: o.status,
+        userId: o.userId,
+        groupId: o.groupId,
+        createdAt: o.createdAt
+      }))
+    );
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
 });
 
 // =====================
