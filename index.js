@@ -80,36 +80,40 @@ app.post('/webhook', middleware, async (req, res) => {
 
       if (event.type !== 'message' || event.message.type !== 'text') continue;
 
-      const text = event.message.text.toLowerCase();
+      const textRaw = event.message.text;
+      const text = textRaw.toLowerCase();
+
       const isEng = text.includes('@eng');
       const isReply = !!event.message.quotedMessageId;
       const isDone = text.includes('done');
 
       // =========================
-      // 1. CREATE REQUEST
+      // 1. CREATE REQUEST (ВСЕГДА если @eng)
       // =========================
-      if (isEng && !isReply) {
+      let createdOrder = null;
 
-        const order = await Order.create({
+      if (isEng) {
+
+        createdOrder = await Order.create({
           lineMessageId: event.message.id,
-          text: event.message.text,
+          text: textRaw,
           userId: event.source.userId,
           groupId: event.source.groupId || null,
-          quotedMessageId: null,
+          quotedMessageId: event.message.quotedMessageId || null,
           status: "pending"
         });
 
-        console.log('🟡 NEW REQUEST:', order.text);
+        console.log('🟡 NEW REQUEST:', createdOrder.text);
 
         io.emit('order:new', {
-          id: order._id.toString(),
-          text: order.text,
-          status: order.status
+          id: createdOrder._id.toString(),
+          text: createdOrder.text,
+          status: createdOrder.status
         });
       }
 
       // =========================
-      // 2. CLOSE REQUEST (DONE)
+      // 2. UPDATE STATUS (DONE)
       // =========================
       if (isReply && isDone) {
 
