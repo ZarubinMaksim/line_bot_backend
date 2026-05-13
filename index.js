@@ -4,6 +4,7 @@ const express = require('express');
 const line = require('@line/bot-sdk');
 
 const app = express();
+app.use(express.json());
 
 const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -14,6 +15,19 @@ app.get('/', (req, res) => {
   res.send('LINE bot works');
 });
 
+// =====================
+// ORDERS API
+// =====================
+app.get('/api/orders', (req, res) => {
+  res.json([
+    { id: "1", text: "B102", status: "new" },
+    { id: "2", text: "A205", status: "done" }
+  ]);
+});
+
+// =====================
+// LINE WEBHOOK
+// =====================
 app.post('/webhook', line.middleware(config), (req, res) => {
   const events = req.body.events;
 
@@ -21,12 +35,10 @@ app.post('/webhook', line.middleware(config), (req, res) => {
     console.log('EVENT:');
     console.log(JSON.stringify(event, null, 2));
 
-    // если сообщение из группы
     if (event.source.type === 'group') {
       console.log('GROUP ID:', event.source.groupId);
     }
 
-    // текст сообщения
     if (event.type === 'message' && event.message.type === 'text') {
       console.log('MESSAGE:', event.message.text);
     }
@@ -35,8 +47,9 @@ app.post('/webhook', line.middleware(config), (req, res) => {
   res.sendStatus(200);
 });
 
+// =====================
+// START SERVER
+// =====================
 app.listen(3001, () => {
-  console.log('Server started on port 3000');
-}).on('error', (err) => {
-  console.log('SERVER ERROR:', err);
+  console.log('Server started on port 3001');
 });
