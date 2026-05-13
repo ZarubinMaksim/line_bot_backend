@@ -1,14 +1,31 @@
 require('dotenv').config();
 
 const express = require('express');
+const http = require('http');
+const mongoose = require('mongoose');
 const line = require('@line/bot-sdk');
+const { Server } = require('socket.io');
 
 const app = express();
-const mongoose = require('mongoose');
+const server = http.createServer(app);
 
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
+
+app.set('io', io);
+
+// =====================
+// MONGO
+// =====================
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log('✅ MongoDB connected'))
   .catch(err => console.log('❌ Mongo error:', err));
+
+// =====================
+// MODEL
+// =====================
+const Order = require('./models/Order');
 
 // =====================
 // LINE CONFIG
@@ -17,18 +34,27 @@ const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
   channelSecret: process.env.LINE_CHANNEL_SECRET,
 };
-const Order = require('./models/Order');
+
+const middleware = line.middleware(config);
+
 // =====================
-// BASIC ROUTES
+// SOCKET
+// =====================
+io.on('connection', (socket) => {
+  console.log('🟢 Client connected:', socket.id);
+});
+
+// =====================
+// ROUTES
 // =====================
 app.get('/', (req, res) => {
   res.send('LINE bot works');
 });
 
-// тест API (для фронта)
+// API ORDERS (REAL DATA)
 app.get('/api/orders', async (req, res) => {
   try {
-    const orders = await Order.find().sort({ _id: -1 });
+    const orders = await Order.find().sort({ createdAt: -1 });
 
     res.json(
       orders.map(o => ({
@@ -40,61 +66,76 @@ app.get('/api/orders', async (req, res) => {
         createdAt: o.createdAt
       }))
     );
-
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "server error" });
+    res.status(500).json({ error: 'server error' });
   }
 });
 
 // =====================
-// LINE WEBHOOK
+// WEBHOOK
 // =====================
-const middleware = line.middleware(config);
-
 app.post('/webhook', middleware, async (req, res) => {
   try {
     const events = req.body.events;
 
     for (const event of events) {
 
-      if (event.type === 'message' && event.message.type === 'text') {
+      if (event.type !== 'message' || event.message.type !== 'text') continue;
 
-        const text = event.message.text;
+      const text = event.message.text;
 
-        // 👉 фильтр: сохраняем только ENG сообщения
-        const isEng = text.toLowerCase().includes('@eng');
+      // фильтр ENG
+      if (!text.toLowerCase().includes('@eng')) {
+        console.log('⛔ SKIP:', text);
+        continue;
+      }
 
-        if (!isEng) {
-          console.log('⛔ SKIP (not ENG):', text);
-          return;
-        }
+      // =====================
+      // CREATE ORDER
+      // =====================
+      const order = await Order.create({
+        lineMessageId: event.message.id,
+        text,
+        userId: event.source.userId,
+        groupId: event.source.groupId || null,
+        sourceType: event.source.type,
+        quotedMessageId: event.message.quotedMessageId || null,
+        status: "pending"
+      });
 
-        const order = await Order.create({
-          lineMessageId: event.message.id,
-          text: text,
-          userId: event.source.userId,
-          groupId: event.source.groupId || null,
-          sourceType: event.source.type,
-          quotedMessageId: event.message.quotedMessageId || null,
-          status: "pending"
+      console.log('🟡 SAVED:', order.text);
+
+      // realtime NEW
+      io.emit('order:new', {
+        id: order._id,
+        text: order.text,
+        status: order.status,
+        userId: order.userId,
+        groupId: order.groupId,
+        createdAt: order.createdAt
+      });
+
+      // =====================
+      // DONE LOGIC (reply)
+      // =====================
+      if (event.message.quotedMessageId) {
+
+        const parent = await Order.findOne({
+          lineMessageId: event.message.quotedMessageId
         });
 
-        console.log('🟡 SAVED ENG:', order.text);
+        if (parent) {
+          parent.status = "done";
+          await parent.save();
 
-        // 👉 если это ответ — закрываем старый заказ
-        if (event.message.quotedMessageId) {
+          console.log('🟢 DONE:', parent.text);
 
-          const parent = await Order.findOne({
-            lineMessageId: event.message.quotedMessageId
+          io.emit('order:update', {
+            id: parent._id,
+            text: parent.text,
+            status: parent.status
           });
-
-          if (parent) {
-            parent.status = "done";
-            await parent.save();
-
-            console.log('🟢 CLOSED:', parent.text);
-          }
         }
       }
     }
@@ -102,7 +143,7 @@ app.post('/webhook', middleware, async (req, res) => {
     res.sendStatus(200);
 
   } catch (err) {
-    console.error(err);
+    console.error('WEBHOOK ERROR:', err);
     res.sendStatus(200);
   }
 });
@@ -112,8 +153,6 @@ app.post('/webhook', middleware, async (req, res) => {
 // =====================
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server started on port ${PORT}`);
-}).on('error', (err) => {
-  console.log('SERVER ERROR:', err);
 });
