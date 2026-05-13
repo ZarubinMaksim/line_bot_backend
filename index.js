@@ -83,7 +83,7 @@ app.post('/webhook', middleware, async (req, res) => {
       const textRaw = event.message.text;
       const text = textRaw.toLowerCase();
 
-      const isEng = text.includes('@eng');
+      const isEng = ['@eng', '-hk'].some(tag => text.includes(tag));
       const isReply = !!event.message.quotedMessageId;
       const isDone = text.includes('done');
 
