@@ -9,11 +9,22 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
+// =====================
+// SOCKET (FIXED)
+// =====================
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
 app.set('io', io);
+
+// лог подключения сокета
+io.on('connection', (socket) => {
+  console.log('🟢 SOCKET CONNECTED:', socket.id);
+});
 
 // =====================
 // MONGO
@@ -38,27 +49,20 @@ const config = {
 const middleware = line.middleware(config);
 
 // =====================
-// SOCKET
-// =====================
-io.on('connection', (socket) => {
-  console.log('🟢 Client connected:', socket.id);
-});
-
-// =====================
 // ROUTES
 // =====================
 app.get('/', (req, res) => {
   res.send('LINE bot works');
 });
 
-// API ORDERS (REAL DATA)
+// ORDERS API
 app.get('/api/orders', async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
 
     res.json(
       orders.map(o => ({
-        id: o._id,
+        id: o._id.toString(),
         text: o.text,
         status: o.status,
         userId: o.userId,
@@ -85,7 +89,6 @@ app.post('/webhook', middleware, async (req, res) => {
 
       const text = event.message.text;
 
-      // фильтр ENG
       if (!text.toLowerCase().includes('@eng')) {
         console.log('⛔ SKIP:', text);
         continue;
@@ -106,18 +109,15 @@ app.post('/webhook', middleware, async (req, res) => {
 
       console.log('🟡 SAVED:', order.text);
 
-      // realtime NEW
+      // 🔥 REALTIME NEW
       io.emit('order:new', {
-        id: order._id,
+        id: order._id.toString(),
         text: order.text,
-        status: order.status,
-        userId: order.userId,
-        groupId: order.groupId,
-        createdAt: order.createdAt
+        status: order.status
       });
 
       // =====================
-      // DONE LOGIC (reply)
+      // DONE LOGIC
       // =====================
       if (event.message.quotedMessageId) {
 
@@ -132,9 +132,8 @@ app.post('/webhook', middleware, async (req, res) => {
           console.log('🟢 DONE:', parent.text);
 
           io.emit('order:update', {
-            id: parent._id,
-            text: parent.text,
-            status: parent.status
+            id: parent._id.toString(),
+            status: "done"
           });
         }
       }
@@ -149,7 +148,7 @@ app.post('/webhook', middleware, async (req, res) => {
 });
 
 // =====================
-// START SERVER
+// START
 // =====================
 const PORT = process.env.PORT || 3001;
 
