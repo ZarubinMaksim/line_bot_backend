@@ -80,39 +80,38 @@ app.post('/webhook', middleware, async (req, res) => {
 
       if (event.type !== 'message' || event.message.type !== 'text') continue;
 
-      const text = event.message.text;
+      const text = event.message.text.toLowerCase();
+      const isEng = text.includes('@eng');
+      const isReply = !!event.message.quotedMessageId;
+      const isDone = text.includes('done');
 
-      // фильтр ENG
-      if (!text.toLowerCase().includes('@eng')) {
-        console.log('⛔ SKIP:', text);
-        continue;
+      // =========================
+      // 1. CREATE REQUEST
+      // =========================
+      if (isEng && !isReply) {
+
+        const order = await Order.create({
+          lineMessageId: event.message.id,
+          text: event.message.text,
+          userId: event.source.userId,
+          groupId: event.source.groupId || null,
+          quotedMessageId: null,
+          status: "pending"
+        });
+
+        console.log('🟡 NEW REQUEST:', order.text);
+
+        io.emit('order:new', {
+          id: order._id.toString(),
+          text: order.text,
+          status: order.status
+        });
       }
 
-      // =====================
-      // CREATE ORDER
-      // =====================
-      const order = await Order.create({
-        lineMessageId: event.message.id,
-        text,
-        userId: event.source.userId,
-        groupId: event.source.groupId || null,
-        quotedMessageId: event.message.quotedMessageId || null,
-        status: "pending"
-      });
-
-      console.log('🟡 SAVED:', order.text);
-
-      // 🔥 REALTIME NEW
-      io.emit('order:new', {
-        id: order._id.toString(),
-        text: order.text,
-        status: order.status
-      });
-
-      // =====================
-      // DONE LOGIC
-      // =====================
-      if (event.message.quotedMessageId) {
+      // =========================
+      // 2. CLOSE REQUEST (DONE)
+      // =========================
+      if (isReply && isDone) {
 
         const parent = await Order.findOne({
           lineMessageId: event.message.quotedMessageId
@@ -135,7 +134,7 @@ app.post('/webhook', middleware, async (req, res) => {
     res.sendStatus(200);
 
   } catch (err) {
-    console.error(err);
+    console.error('WEBHOOK ERROR:', err);
     res.sendStatus(200);
   }
 });
