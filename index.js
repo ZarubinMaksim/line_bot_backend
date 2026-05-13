@@ -10,7 +10,7 @@ const app = express();
 const server = http.createServer(app);
 
 // =====================
-// SOCKET (FIXED)
+// SOCKET FIX
 // =====================
 const io = new Server(server, {
   cors: {
@@ -21,7 +21,6 @@ const io = new Server(server, {
 
 app.set('io', io);
 
-// лог подключения сокета
 io.on('connection', (socket) => {
   console.log('🟢 SOCKET CONNECTED:', socket.id);
 });
@@ -55,25 +54,19 @@ app.get('/', (req, res) => {
   res.send('LINE bot works');
 });
 
-// ORDERS API
+// =====================
+// API
+// =====================
 app.get('/api/orders', async (req, res) => {
-  try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+  const orders = await Order.find().sort({ createdAt: -1 });
 
-    res.json(
-      orders.map(o => ({
-        id: o._id.toString(),
-        text: o.text,
-        status: o.status,
-        userId: o.userId,
-        groupId: o.groupId,
-        createdAt: o.createdAt
-      }))
-    );
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'server error' });
-  }
+  res.json(
+    orders.map(o => ({
+      id: o._id.toString(),
+      text: o.text,
+      status: o.status
+    }))
+  );
 });
 
 // =====================
@@ -89,6 +82,7 @@ app.post('/webhook', middleware, async (req, res) => {
 
       const text = event.message.text;
 
+      // фильтр ENG
       if (!text.toLowerCase().includes('@eng')) {
         console.log('⛔ SKIP:', text);
         continue;
@@ -102,7 +96,6 @@ app.post('/webhook', middleware, async (req, res) => {
         text,
         userId: event.source.userId,
         groupId: event.source.groupId || null,
-        sourceType: event.source.type,
         quotedMessageId: event.message.quotedMessageId || null,
         status: "pending"
       });
@@ -142,7 +135,7 @@ app.post('/webhook', middleware, async (req, res) => {
     res.sendStatus(200);
 
   } catch (err) {
-    console.error('WEBHOOK ERROR:', err);
+    console.error(err);
     res.sendStatus(200);
   }
 });
