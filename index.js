@@ -4,6 +4,11 @@ const express = require('express');
 const line = require('@line/bot-sdk');
 
 const app = express();
+const mongoose = require('mongoose');
+
+mongoose.connect(process.env.MONGO_URL)
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.log('❌ Mongo error:', err));
 
 // =====================
 // LINE CONFIG
@@ -12,7 +17,7 @@ const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
   channelSecret: process.env.LINE_CHANNEL_SECRET,
 };
-
+const Order = require('./models/Order');
 // =====================
 // BASIC ROUTES
 // =====================
@@ -37,40 +42,53 @@ app.post('/webhook', middleware, async (req, res) => {
   try {
     const events = req.body.events;
 
-    console.log('🔥 WEBHOOK HIT');
-    console.log('Events count:', events.length);
-
     for (const event of events) {
-      console.log('----------------------');
-      console.log(JSON.stringify(event, null, 2));
 
-      // только текстовые сообщения
       if (event.type === 'message' && event.message.type === 'text') {
+
         const text = event.message.text;
 
-        console.log('💬 MESSAGE:', text);
+        // 👉 фильтр: сохраняем только ENG сообщения
+        const isEng = text.toLowerCase().includes('@eng');
 
-        // источник
-        if (event.source.type === 'user') {
-          console.log('👤 PRIVATE CHAT');
+        if (!isEng) {
+          console.log('⛔ SKIP (not ENG):', text);
+          return;
         }
 
-        if (event.source.type === 'group') {
-          console.log('👥 GROUP CHAT');
-          console.log('GROUP ID:', event.source.groupId);
-        }
+        const order = await Order.create({
+          lineMessageId: event.message.id,
+          text: text,
+          userId: event.source.userId,
+          groupId: event.source.groupId || null,
+          sourceType: event.source.type,
+          quotedMessageId: event.message.quotedMessageId || null,
+          status: "pending"
+        });
 
-        console.log('USER ID:', event.source.userId);
+        console.log('🟡 SAVED ENG:', order.text);
+
+        // 👉 если это ответ — закрываем старый заказ
+        if (event.message.quotedMessageId) {
+
+          const parent = await Order.findOne({
+            lineMessageId: event.message.quotedMessageId
+          });
+
+          if (parent) {
+            parent.status = "done";
+            await parent.save();
+
+            console.log('🟢 CLOSED:', parent.text);
+          }
+        }
       }
     }
 
-    // ВАЖНО: LINE всегда должен получить 200
     res.sendStatus(200);
 
   } catch (err) {
-    console.error('💥 WEBHOOK ERROR:', err);
-
-    // даже при ошибке LINE должен получить 200
+    console.error(err);
     res.sendStatus(200);
   }
 });
