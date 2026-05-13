@@ -37,6 +37,12 @@ mongoose.connect(process.env.MONGO_URL)
 // =====================
 const Order = require('./models/Order');
 
+const cors = require('cors');
+
+app.use(cors({
+  origin: "*"
+}));
+
 // =====================
 // LINE CONFIG
 // =====================
