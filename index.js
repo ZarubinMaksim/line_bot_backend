@@ -77,7 +77,9 @@ app.get('/api/orders', async (req, res) => {
     orders.map(o => ({
       id: o._id.toString(),
       text: o.text,
-      status: o.status
+      status: o.status,
+      groupId: o.groupId,
+      createdAt: o.createdAt
     }))
   );
 });
