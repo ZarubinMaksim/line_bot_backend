@@ -231,7 +231,7 @@ app.post('/api/reply', async (req, res) => {
     }
 
     const response = await client.pushMessage({
-      to: order.userId,
+      to: order.groupId || order.userId,
       messages: [
         {
           type: 'text',
