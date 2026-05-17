@@ -63,6 +63,7 @@ const middleware = line.middleware(config);
 // =====================
 // ROUTES
 // =====================
+app.use(express.json());
 app.get('/', (req, res) => {
   res.send('LINE bot works');
 });
