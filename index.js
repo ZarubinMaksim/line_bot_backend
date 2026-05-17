@@ -84,6 +84,19 @@ app.get('/api/orders', async (req, res) => {
   );
 });
 
+app.post('/api/reply', async (req, res) => {
+
+  const order = await Order.findById(req.body.orderId);
+
+  await client.pushMessage(order.userId, {
+    type: 'text',
+    text: req.body.text,
+    quoteToken: order.lineMessageId
+  });
+
+  res.sendStatus(200);
+});
+
 // =====================
 // WEBHOOK
 // =====================
