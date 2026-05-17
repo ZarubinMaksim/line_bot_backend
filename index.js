@@ -10,7 +10,7 @@ const app = express();
 const server = http.createServer(app);
 
 // =====================
-// SOCKET FIX
+// SOCKET
 // =====================
 const io = new Server(server, {
   cors: {
@@ -33,11 +33,14 @@ mongoose.connect(process.env.MONGO_URL)
   .catch(err => console.log('❌ Mongo error:', err));
 
 // =====================
-// MODEL
+// MODELS
 // =====================
 const Order = require('./models/Order');
 const Message = require('./models/Message');
 
+// =====================
+// CORS
+// =====================
 const cors = require('cors');
 
 app.use(cors({
@@ -52,7 +55,7 @@ app.use(cors({
 }));
 
 // =====================
-// LINE CONFIG зззз
+// LINE CONFIG
 // =====================
 const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -60,11 +63,13 @@ const config = {
 };
 
 const middleware = line.middleware(config);
+
 const client = new line.messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN
 });
+
 // =====================
-// ROUTES
+// BASIC ROUTE
 // =====================
 app.get('/', (req, res) => {
   res.send('LINE bot works');
@@ -74,28 +79,37 @@ app.get('/', (req, res) => {
 // WEBHOOK
 // =====================
 app.post('/webhook', middleware, async (req, res) => {
+
   try {
+
     const events = req.body.events;
 
     for (const event of events) {
-    console.log('this is evet', event)
-      if (event.type !== 'message' || event.message.type !== 'text') continue;
+
+      console.log('EVENT:', event);
+
+      if (
+        event.type !== 'message' ||
+        event.message.type !== 'text'
+      ) continue;
 
       const textRaw = event.message.text;
       const text = textRaw.toLowerCase();
 
-      const isEng = ['@eng', '-hk'].some(tag => text.includes(tag));
+      const isEng = ['@eng', '-hk'].some(tag =>
+        text.includes(tag)
+      );
+
       const isReply = !!event.message.quotedMessageId;
+
       const isDone = text.includes('done');
 
-      // =========================
-      // 1. CREATE REQUEST (ВСЕГДА если @eng)
-      // =========================
-      let createdOrder = null;
-
+      // =====================
+      // CREATE REQUEST
+      // =====================
       if (isEng) {
 
-        createdOrder = await Order.create({
+        const createdOrder = await Order.create({
           lineMessageId: event.message.id,
           quoteToken: event.message.quoteToken,
           text: textRaw,
@@ -103,6 +117,13 @@ app.post('/webhook', middleware, async (req, res) => {
           groupId: event.source.groupId || null,
           quotedMessageId: event.message.quotedMessageId || null,
           status: "pending"
+        });
+
+        // SAVE ORIGINAL MESSAGE
+        await Message.create({
+          lineMessageId: event.message.id,
+          orderId: createdOrder._id,
+          text: textRaw
         });
 
         console.log('🟡 NEW REQUEST:', createdOrder);
@@ -117,25 +138,40 @@ app.post('/webhook', middleware, async (req, res) => {
         });
       }
 
-      // =========================
-      // 2. UPDATE STATUS (DONE)
-      // =========================
+      // =====================
+      // DONE LOGIC
+      // =====================
       if (isReply && isDone) {
 
-        const parent = await Order.findOne({
+        console.log('🟢 DONE REPLY');
+
+        // FIND MESSAGE THAT WAS REPLIED TO
+        const message = await Message.findOne({
           lineMessageId: event.message.quotedMessageId
         });
 
-        if (parent) {
-          parent.status = "done";
-          await parent.save();
+        console.log('FOUND MESSAGE:', message);
 
-          console.log('🟢 DONE:', parent.text);
+        if (message) {
 
-          io.emit('order:update', {
-            id: parent._id.toString(),
-            status: "done"
-          });
+          // FIND ORIGINAL ORDER
+          const parent = await Order.findById(message.orderId);
+
+          console.log('FOUND ORDER:', parent);
+
+          if (parent) {
+
+            parent.status = "done";
+
+            await parent.save();
+
+            console.log('✅ ORDER COMPLETED');
+
+            io.emit('order:update', {
+              id: parent._id.toString(),
+              status: "done"
+            });
+          }
         }
       }
     }
@@ -143,19 +179,26 @@ app.post('/webhook', middleware, async (req, res) => {
     res.sendStatus(200);
 
   } catch (err) {
+
     console.error('WEBHOOK ERROR:', err);
+
     res.sendStatus(200);
   }
 });
 
+// =====================
+// IMPORTANT
+// MUST BE AFTER WEBHOOK
+// =====================
 app.use(express.json());
-
 
 // =====================
 // API
 // =====================
 app.get('/api/orders', async (req, res) => {
-  const orders = await Order.find().sort({ createdAt: -1 });
+
+  const orders = await Order.find()
+    .sort({ createdAt: -1 });
 
   res.json(
     orders.map(o => ({
@@ -168,30 +211,59 @@ app.get('/api/orders', async (req, res) => {
   );
 });
 
+// =====================
+// SEND FOLLOW-UP
+// =====================
 app.post('/api/reply', async (req, res) => {
 
-  console.log('YA TUT');
-  console.log('req.body', req.body);
+  try {
 
-  const order = await Order.findById(req.body.orderId);
+    console.log('REQ BODY:', req.body);
 
-  console.log('order', order);
+    const order = await Order.findById(req.body.orderId);
 
-  await client.pushMessage({
-    to: order.userId,
-    messages: [
-      {
-        type: 'text',
-        text: req.body.text,
-        quoteToken: order.quoteToken
-      }
-    ]
-  });
+    console.log('FOUND ORDER:', order);
 
-  res.sendStatus(200);
+    if (!order) {
+      return res.status(404).json({
+        error: 'Order not found'
+      });
+    }
+
+    const response = await client.pushMessage({
+      to: order.userId,
+      messages: [
+        {
+          type: 'text',
+          text: req.body.text,
+          quoteToken: order.quoteToken
+        }
+      ]
+    });
+
+    console.log('LINE RESPONSE:', response);
+
+    // SAVE FOLLOW-UP MESSAGE
+    if (response.sentMessages?.[0]?.id) {
+
+      await Message.create({
+        lineMessageId: response.sentMessages[0].id,
+        orderId: order._id,
+        text: req.body.text
+      });
+
+      console.log('💾 FOLLOW-UP MESSAGE SAVED');
+    }
+
+    res.sendStatus(200);
+
+  } catch (err) {
+
+    console.log('REPLY ERROR:', err);
+
+    res.sendStatus(500);
+  }
 });
-
-
 
 // =====================
 // START
