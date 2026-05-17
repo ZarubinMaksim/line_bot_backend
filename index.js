@@ -118,7 +118,7 @@ app.post('/webhook', middleware, async (req, res) => {
           status: "pending"
         });
 
-        console.log('🟡 NEW REQUEST:', createdOrder.text);
+        console.log('🟡 NEW REQUEST:', createdOrder);
 
         io.emit('order:new', {
           id: createdOrder._id.toString(),
