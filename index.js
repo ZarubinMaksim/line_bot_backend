@@ -211,6 +211,24 @@ app.get('/api/orders', async (req, res) => {
   );
 });
 
+app.get('/api/orders/:id/history', async (req, res) => {
+
+  try {
+
+    const messages = await Message.find({
+      orderId: req.params.id
+    }).sort({ createdAt: 1 });
+
+    res.json(messages);
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.sendStatus(500);
+  }
+});
+
 // =====================
 // SEND FOLLOW-UP
 // =====================
