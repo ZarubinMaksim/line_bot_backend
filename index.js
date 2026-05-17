@@ -77,7 +77,7 @@ app.post('/webhook', middleware, async (req, res) => {
     const events = req.body.events;
 
     for (const event of events) {
-
+    console.log('this is evet', event)
       if (event.type !== 'message' || event.message.type !== 'text') continue;
 
       const textRaw = event.message.text;
