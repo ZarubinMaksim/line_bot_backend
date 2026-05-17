@@ -15,6 +15,7 @@ const orderSchema = new mongoose.Schema({
   quotedMessageId: String, // reply связь
 
   sourceType: String, // user / group
+  quotedMessageId: String,
 
   createdAt: {
     type: Date,
