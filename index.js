@@ -59,8 +59,9 @@ const config = {
 };
 
 const middleware = line.middleware(config);
-const client = new line.Client(config);
-
+const client = new line.messagingApi.MessagingApiClient({
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN
+});
 // =====================
 // ROUTES
 // =====================
