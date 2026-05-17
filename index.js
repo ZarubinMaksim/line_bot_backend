@@ -123,7 +123,10 @@ app.post('/webhook', middleware, async (req, res) => {
         io.emit('order:new', {
           id: createdOrder._id.toString(),
           text: createdOrder.text,
-          status: createdOrder.status
+          status: createdOrder.status,
+          groupId: createdOrder.groupId,
+          quotedMessageId: createdOrder.quotedMessageId,
+          createdAt: createdOrder.createdAt
         });
       }
 
