@@ -96,6 +96,7 @@ app.post('/webhook', middleware, async (req, res) => {
 
         createdOrder = await Order.create({
           lineMessageId: event.message.id,
+          quoteToken: event.message.quoteToken,
           text: textRaw,
           userId: event.source.userId,
           groupId: event.source.groupId || null,
@@ -180,7 +181,8 @@ app.post('/api/reply', async (req, res) => {
     messages: [
       {
         type: 'text',
-        text: req.body.text
+        text: req.body.text,
+        quoteToken: order.quoteToken
       }
     ]
   });
