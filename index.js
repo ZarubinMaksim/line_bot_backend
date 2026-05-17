@@ -89,8 +89,9 @@ app.get('/api/orders', async (req, res) => {
 
 app.post('/api/reply', async (req, res) => {
   console.log('YA TUT')
-  console.log(req.body);
+  console.log('req.body', req.body);
   const order = await Order.findById(req.body.orderId);
+  console.log('order', order)
 
   await client.pushMessage(order.userId, {
     type: 'text',
