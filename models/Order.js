@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema({
   lineMessageId: { type: String, unique: true },
+  quoteToken: String,
   text: String,
 
   status: {
@@ -15,7 +16,6 @@ const orderSchema = new mongoose.Schema({
   quotedMessageId: String, // reply связь
 
   sourceType: String, // user / group
-  quotedMessageId: String,
 
   createdAt: {
     type: Date,
