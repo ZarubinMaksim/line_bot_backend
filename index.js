@@ -65,48 +65,8 @@ const client = new line.messagingApi.MessagingApiClient({
 // =====================
 // ROUTES
 // =====================
-app.use(express.json());
 app.get('/', (req, res) => {
   res.send('LINE bot works');
-});
-
-// =====================
-// API
-// =====================
-app.get('/api/orders', async (req, res) => {
-  const orders = await Order.find().sort({ createdAt: -1 });
-
-  res.json(
-    orders.map(o => ({
-      id: o._id.toString(),
-      text: o.text,
-      status: o.status,
-      groupId: o.groupId,
-      createdAt: o.createdAt
-    }))
-  );
-});
-
-app.post('/api/reply', async (req, res) => {
-
-  console.log('YA TUT');
-  console.log('req.body', req.body);
-
-  const order = await Order.findById(req.body.orderId);
-
-  console.log('order', order);
-
-  await client.pushMessage({
-    to: order.userId,
-    messages: [
-      {
-        type: 'text',
-        text: req.body.text
-      }
-    ]
-  });
-
-  res.sendStatus(200);
 });
 
 // =====================
@@ -185,6 +145,50 @@ app.post('/webhook', middleware, async (req, res) => {
     res.sendStatus(200);
   }
 });
+
+app.use(express.json());
+
+
+// =====================
+// API
+// =====================
+app.get('/api/orders', async (req, res) => {
+  const orders = await Order.find().sort({ createdAt: -1 });
+
+  res.json(
+    orders.map(o => ({
+      id: o._id.toString(),
+      text: o.text,
+      status: o.status,
+      groupId: o.groupId,
+      createdAt: o.createdAt
+    }))
+  );
+});
+
+app.post('/api/reply', async (req, res) => {
+
+  console.log('YA TUT');
+  console.log('req.body', req.body);
+
+  const order = await Order.findById(req.body.orderId);
+
+  console.log('order', order);
+
+  await client.pushMessage({
+    to: order.userId,
+    messages: [
+      {
+        type: 'text',
+        text: req.body.text
+      }
+    ]
+  });
+
+  res.sendStatus(200);
+});
+
+
 
 // =====================
 // START
