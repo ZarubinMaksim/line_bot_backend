@@ -212,14 +212,15 @@ app.get('/api/orders', async (req, res) => {
 });
 
 app.get('/api/orders/:id/history', async (req, res) => {
-
   try {
+console.log('HISTORY ORDER ID:', req.params.id);
 
     const messages = await Message.find({
       orderId: req.params.id
     }).sort({ createdAt: 1 });
 
     res.json(messages);
+    console.log('MESSAGES:', messages);
 
   } catch (err) {
 
