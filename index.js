@@ -162,7 +162,7 @@ app.post('/webhook', middleware, async (req, res) => {
           if (parent) {
 
             parent.status = "done";
-
+            parent.doneAt = new Date();
             await parent.save();
 
             console.log('✅ ORDER COMPLETED');
