@@ -263,16 +263,13 @@ app.post('/api/reply', async (req, res) => {
     console.log('LINE RESPONSE:', response);
 
     // SAVE FOLLOW-UP MESSAGE
-    if (response.sentMessages?.[0]?.id) {
+await Message.create({
+  lineMessageId: 'followup-' + Date.now(),
+  orderId: order._id,
+  text: req.body.text
+});
 
-      await Message.create({
-        lineMessageId: response.sentMessages[0].id,
-        orderId: order._id,
-        text: req.body.text
-      });
-
-      console.log('💾 FOLLOW-UP MESSAGE SAVED');
-    }
+console.log('💾 FOLLOW-UP MESSAGE SAVED');
 
     res.sendStatus(200);
 
